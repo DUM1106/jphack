@@ -1,10 +1,27 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { HandLandmarker, FilesetResolver, NormalizedLandmark } from "@mediapipe/tasks-vision";
-
+import React, { useRef, useEffect, useState, useCallback } from "react";
+import {
+  HandLandmarker,
+  FilesetResolver,
+  NormalizedLandmark,
+} from "@mediapipe/tasks-vision";
 
 const App: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(
+    null
+  );
+
+  // 予測結果の状態管理
+  const [predictedSign, setPredictedSign] = useState<{
+    sign: string;
+    probability: number;
+  } | null>(null);
+
+  const lastPredictionTimeRef = useRef<number>(0);
+
+  const requestsPerSecond = 2;
+  const requestInterval = 1000 / requestsPerSecond;
 
   useEffect(() => {
     const initializeHandLandmarker = async () => {
@@ -38,7 +55,9 @@ const App: React.FC = () => {
       const video = videoRef.current;
       if (video && navigator.mediaDevices) {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+          });
           video.srcObject = stream;
           video.play();
         } catch (error) {
@@ -50,18 +69,32 @@ const App: React.FC = () => {
     startCamera();
   }, []);
 
-  // ランドマークデータをバックエンドに送信する関数
-  const sendLandmarkData = async (landmarks: NormalizedLandmark[]) => {
-    try {
-      await fetch('/api/landmarks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ landmarks }),
-      });
-    } catch (error) {
-      console.error("エラーが発生しました:", error);
+  // ランドマークをCanvasに描画する関数
+  const drawLandmarks = (landmarks: NormalizedLandmark[]) => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (canvas && video) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#FF0000";
+        ctx.strokeStyle = "#00FF00";
+        ctx.lineWidth = 2;
+
+        landmarks.forEach((landmark) => {
+          const x = landmark.x * canvas.width;
+          const y = landmark.y * canvas.height;
+          ctx.beginPath();
+          ctx.arc(x, y, 5, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.stroke();
+        });
+      }
     }
   };
 
@@ -73,32 +106,160 @@ const App: React.FC = () => {
         const results = await handLandmarker.detectForVideo(video, startTimeMs);
 
         if (results.landmarks && results.landmarks.length > 0) {
-          // ランドマークデータを取得して送信
-          await sendLandmarkData(results.landmarks.flat());
+          drawLandmarks(results.landmarks.flat());
+          const normalizedData = normalizeData(results.landmarks.flat());
+
+          // リクエスト間隔に基づいてリクエストを送信
+          if (
+            performance.now() - lastPredictionTimeRef.current >
+            requestInterval
+          ) {
+            lastPredictionTimeRef.current = performance.now();
+            postNormalizedData(normalizedData);
+          }
         }
       }
 
       requestAnimationFrame(renderLoop);
     }
-  }, [handLandmarker]);
+  }, [handLandmarker, requestInterval]);
+
+  const normalizeData = (data: NormalizedLandmark[]): number[][] => {
+    let x = 0;
+    let y = 0;
+    let z = 0;
+    let max = -1;
+    const coordinates: number[][] = [];
+
+    data.forEach((d, i) => {
+      if (i === 0) {
+        x = d.x;
+        y = d.y;
+        z = d.z;
+      } else {
+        const t = (d.x - x) ** 2 + (d.y - y) ** 2 + (d.z - z) ** 2;
+        max = Math.max(max, t);
+        coordinates.push([d.x - x, d.y - y, d.z - z]);
+      }
+    });
+
+    // maxが正の値であることを確認し、maxが負の場合はそのまま返す
+    if (max <= 0) return coordinates;
+
+    // maxで各座標を正規化
+    const normalizedCoordinates = coordinates.map((d) =>
+      d.map((v) => v / Math.sqrt(max))
+    );
+
+    return normalizedCoordinates;
+  };
+
+  const postNormalizedData = async (data: number[][]) => {
+    try {
+      const dataToSend = { landmark: data };
+      const response = await fetch("http://localhost:8000/predict", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(dataToSend),
+      });
+
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+
+      const result = await response.json();
+
+      // 予測結果を処理
+      const predictions = result.prediction[0]; // 二重の配列になっている可能性があるため[0]を追加
+      const maxProbability = Math.max(...predictions);
+      const maxIndex = predictions.indexOf(maxProbability);
+
+      // クラスと指文字のマッピング
+      const signs = [
+        "あ",
+        "い",
+        "う",
+        "え",
+        "お",
+        "か",
+        "き",
+        "く",
+        "け",
+        "こ",
+        "さ",
+        "し",
+        "す",
+        "せ",
+        "そ",
+      ]; // クラス数に応じて追加
+
+      // 確率が高い場合のみ表示
+      if (maxProbability > 0.5) {
+        setPredictedSign({
+          sign: signs[maxIndex],
+          probability: maxProbability,
+        });
+      } else {
+        setPredictedSign(null); // 確率が低い場合は非表示
+      }
+    } catch (error) {
+      console.error("Error posting normalized data:", error);
+    }
+  };
+
+  // // 推論関数の型を定義
+  // const infer = async (data: number[][]) => {
+  //   try {
+  //     // TFLiteモデルのロード
+  //     const model = await tf.loadLayersModel("/model/model.json");
+
+  //     console.log(model);
+
+  //     // 入力データをTensorに変換
+  //     const inputTensor = tf.tensor(data);
+
+  //     // 推論を実行
+  //     const output = model.predict(inputTensor);
+
+  //     // 結果を返す
+  //     return output;
+  //   } catch (error) {
+  //     console.error("推論中にエラーが発生しました:", error);
+  //     return undefined;
+  //   }
+  // };
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    if (handLandmarker) {
       renderLoop();
-    }, 1000); // 1秒ごとにデータを送信
-
-    return () => clearInterval(interval);
+    }
   }, [handLandmarker, renderLoop]);
 
   return (
     <div>
       {/* カメラ映像を表示するためのvideoタグ */}
-      <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "auto" }} />
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ display: "none" }}
+      />
+      {/* ランドマークを描画するためのcanvasタグ */}
+      <canvas ref={canvasRef} style={{ width: "100%", height: "auto" }} />
       <h1>Hand Landmark Detection</h1>
+
+      {/* 予測結果の表示 */}
+      {predictedSign && (
+        <div>
+          <h2>予測された指文字: {predictedSign.sign}</h2>
+          <p>確率: {(predictedSign.probability * 100).toFixed(2)}%</p>
+        </div>
+      )}
     </div>
   );
 };
 
 export default App;
-
-
