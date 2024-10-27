@@ -18,6 +18,8 @@ const App: React.FC = () => {
     probability: number;
   } | null>(null);
 
+  const [word, setWord] = useState<string>("");
+
   const lastPredictionTimeRef = useRef<number>(0);
 
   const requestsPerSecond = 2;
@@ -156,6 +158,14 @@ const App: React.FC = () => {
     return normalizedCoordinates;
   };
 
+  const wordDict: Record<string, string> = {
+    さき: "先",
+    かき: "柿",
+    かさ: "傘",
+    さけ: "酒",
+    あさ: "朝",
+  };
+
   const speakSign = (sign: string) => {
     const utterance = new SpeechSynthesisUtterance(sign);
     window.speechSynthesis.speak(utterance);
@@ -209,11 +219,18 @@ const App: React.FC = () => {
           sign: newSign,
           probability: maxProbability,
         });
-        // 前回の指文字と異なる場合のみ音声を再生
-        console.log(lastSignRef.current);
+        // 新しい指文字と前の指文字を結合
+        const combinedSign =
+          (lastSignRef.current ? lastSignRef.current : "") + newSign;
+
+        // wordDictのキーと一致する場合、setWordを呼び出す
+        if (wordDict[combinedSign]) {
+          speakSign(wordDict[combinedSign]);
+          setWord(wordDict[combinedSign]);
+          console.log(word);
+        }
         if (newSign !== lastSignRef.current) {
-          speakSign(newSign);
-          lastSignRef.current = newSign; // 現在の指文字を更新
+          lastSignRef.current = newSign;
         }
       } else {
         setPredictedSign(null); // 確率が低い場合は非表示
@@ -252,7 +269,10 @@ const App: React.FC = () => {
   }, [handLandmarker, renderLoop]);
 
   return (
-    <div>
+    <div
+      style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+    >
+      <h1 style={{ color: "red" }}>HearU</h1>
       {/* カメラ映像を表示するためのvideoタグ */}
       <video
         ref={videoRef}
@@ -263,13 +283,16 @@ const App: React.FC = () => {
       />
       {/* ランドマークを描画するためのcanvasタグ */}
       <canvas ref={canvasRef} style={{ width: "100%", height: "auto" }} />
-      <h1>Hand Landmark Detection</h1>
 
       {/* 予測結果の表示 */}
       {predictedSign && (
         <div>
-          <h2>予測された指文字: {predictedSign.sign}</h2>
-          <p>確率: {(predictedSign.probability * 100).toFixed(2)}%</p>
+          <h3>
+            予測された指文字: {predictedSign.sign} (確率:{" "}
+            {(predictedSign.probability * 100).toFixed(2)}%)
+          </h3>
+          {/* <p>確率: {(predictedSign.probability * 100).toFixed(2)}%</p> */}
+          <h3>単語: {word}</h3>
         </div>
       )}
     </div>
