@@ -164,6 +164,9 @@ const App: React.FC = () => {
     かさ: "傘",
     さけ: "酒",
     あさ: "朝",
+    くさ: "草",
+    くせ: "癖",
+    さお: "竿",
   };
 
   const speakSign = (sign: string) => {
@@ -272,7 +275,17 @@ const App: React.FC = () => {
     <div
       style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
     >
-      <h1 style={{ color: "red" }}>HearU</h1>
+      <p
+        style={{
+          color: "red",
+          fontSize: "40px",
+          fontWeight: 700,
+          position: "fixed",
+          top: 0,
+        }}
+      >
+        HearU
+      </p>
       {/* カメラ映像を表示するためのvideoタグ */}
       <video
         ref={videoRef}
