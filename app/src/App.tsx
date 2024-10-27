@@ -155,46 +155,10 @@ const App: React.FC = () => {
 
     return normalizedCoordinates;
   };
-  function getVoice(
-    voicesArray: string[],
-    lang: string
-  ): Promise<SpeechSynthesisVoice | null> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const voices = speechSynthesis.getVoices();
-        for (const voiceName of voicesArray) {
-          const voice = voices.find((voice) => voice.name === voiceName);
-          if (voice) {
-            console.log("voice URI あった時");
-            console.log(voice);
-            resolve(voice);
-            return;
-          }
-        }
-        if (voices.length > 0) {
-          const voice =
-            voices.find((voice) => voice.lang.includes(lang)) || null;
-          console.log("voice URI なかった時");
-          console.log(voice);
-          resolve(voice);
-        } else {
-          resolve(null);
-        }
-      }, 100);
-    });
-  }
 
-  const speakSign = async (sign: string): Promise<void> => {
-    const utter = new SpeechSynthesisUtterance();
-    utter.text = sign;
-    const voice = await getVoice(["Google 日本語", "Kyoko"], "ja");
-    if (voice) {
-      utter.voice = voice;
-    } else {
-      console.warn("指定された音声が見つかりませんでした。");
-    }
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
+  const speakSign = (sign: string) => {
+    const utterance = new SpeechSynthesisUtterance(sign);
+    window.speechSynthesis.speak(utterance);
   };
 
   const postNormalizedData = async (data: number[][]) => {
