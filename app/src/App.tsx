@@ -23,6 +23,8 @@ const App: React.FC = () => {
   const requestsPerSecond = 2;
   const requestInterval = 1000 / requestsPerSecond;
 
+  const lastSignRef = useRef<string | null>(null); // 前回の指文字を保持
+
   useEffect(() => {
     const initializeHandLandmarker = async () => {
       // Mediapipe用のWASMファイルのURLを指定
@@ -56,7 +58,7 @@ const App: React.FC = () => {
       if (video && navigator.mediaDevices) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+            video: { facingMode: "environment" },
           });
           video.srcObject = stream;
           video.play();
@@ -154,10 +156,15 @@ const App: React.FC = () => {
     return normalizedCoordinates;
   };
 
+  const speakSign = (sign: string) => {
+    const utterance = new SpeechSynthesisUtterance(sign);
+    window.speechSynthesis.speak(utterance);
+  };
+
   const postNormalizedData = async (data: number[][]) => {
     try {
       const dataToSend = { landmark: data };
-      const response = await fetch("https://tk-2423.onrender.com/predict", {
+      const response = await fetch("http://10.100.87.2:8000/predict", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -197,10 +204,17 @@ const App: React.FC = () => {
 
       // 確率が高い場合のみ表示
       if (maxProbability > 0.5) {
+        const newSign = signs[maxIndex];
         setPredictedSign({
-          sign: signs[maxIndex],
+          sign: newSign,
           probability: maxProbability,
         });
+        // 前回の指文字と異なる場合のみ音声を再生
+        console.log(lastSignRef.current);
+        if (newSign !== lastSignRef.current) {
+          speakSign(newSign);
+          lastSignRef.current = newSign; // 現在の指文字を更新
+        }
       } else {
         setPredictedSign(null); // 確率が低い場合は非表示
       }
