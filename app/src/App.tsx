@@ -157,7 +157,7 @@ const App: React.FC = () => {
   const postNormalizedData = async (data: number[][]) => {
     try {
       const dataToSend = { landmark: data };
-      const response = await fetch("http://10.100.87.2:8000/predict", {
+      const response = await fetch("https://tk-2423.onrender.com/predict", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
