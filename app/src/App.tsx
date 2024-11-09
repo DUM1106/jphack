@@ -12,6 +12,9 @@ const App: React.FC = () => {
     null
   );
 
+  // AudioContextの参照を保持
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
   // 予測結果の状態管理
   const [predictedSign, setPredictedSign] = useState<{
     sign: string;
@@ -71,6 +74,29 @@ const App: React.FC = () => {
     };
 
     startCamera();
+  }, []);
+
+  // AudioContextを初期化するuseEffect
+  useEffect(() => {
+    const audioCtx = new AudioContext();
+    audioCtxRef.current = audioCtx;
+
+    const initAudioContext = () => {
+      window.removeEventListener("touchstart", initAudioContext);
+      window.removeEventListener("click", initAudioContext);
+      // 空の音声バッファを再生してAudioContextを起動
+      const emptySource = audioCtx.createBufferSource();
+      emptySource.start();
+      emptySource.stop();
+    };
+
+    window.addEventListener("touchstart", initAudioContext);
+    window.addEventListener("click", initAudioContext);
+
+    return () => {
+      window.removeEventListener("touchstart", initAudioContext);
+      window.removeEventListener("click", initAudioContext);
+    };
   }, []);
 
   // ランドマークをCanvasに描画する関数
@@ -171,6 +197,7 @@ const App: React.FC = () => {
 
   const speakSign = (sign: string) => {
     const utterance = new SpeechSynthesisUtterance(sign);
+    // 音声を再生
     window.speechSynthesis.speak(utterance);
   };
 
@@ -252,11 +279,12 @@ const App: React.FC = () => {
         const combinedSign =
           (lastSignRef.current ? lastSignRef.current : "") + newSign;
 
+        speakSign(newSign);
+
         // wordDictのキーと一致する場合、setWordを呼び出す
         if (wordDict[combinedSign]) {
-          speakSign(wordDict[combinedSign]);
           setWord(wordDict[combinedSign]);
-          console.log(word);
+          console.log(wordDict[combinedSign]);
         }
         if (newSign !== lastSignRef.current) {
           lastSignRef.current = newSign;
@@ -268,28 +296,6 @@ const App: React.FC = () => {
       console.error("Error posting normalized data:", error);
     }
   };
-
-  // // 推論関数の型を定義
-  // const infer = async (data: number[][]) => {
-  //   try {
-  //     // TFLiteモデルのロード
-  //     const model = await tf.loadLayersModel("/model/model.json");
-
-  //     console.log(model);
-
-  //     // 入力データをTensorに変換
-  //     const inputTensor = tf.tensor(data);
-
-  //     // 推論を実行
-  //     const output = model.predict(inputTensor);
-
-  //     // 結果を返す
-  //     return output;
-  //   } catch (error) {
-  //     console.error("推論中にエラーが発生しました:", error);
-  //     return undefined;
-  //   }
-  // };
 
   useEffect(() => {
     if (handLandmarker) {
@@ -330,7 +336,6 @@ const App: React.FC = () => {
             予測された指文字: {predictedSign.sign} (確率:{" "}
             {(predictedSign.probability * 100).toFixed(2)}%)
           </h3>
-          {/* <p>確率: {(predictedSign.probability * 100).toFixed(2)}%</p> */}
           <h3>単語: {word}</h3>
         </div>
       )}
