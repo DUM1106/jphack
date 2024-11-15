@@ -76,6 +76,16 @@ const App: React.FC = () => {
     startCamera();
   }, []);
 
+  const handleEnableAudio = () => {
+    const audioCtx = new AudioContext();
+    audioCtxRef.current = audioCtx;
+
+    // 空の音声バッファを再生してAudioContextを起動
+    const emptySource = audioCtx.createBufferSource();
+    emptySource.start();
+    emptySource.stop();
+  };
+
   // AudioContextを初期化するuseEffect
   useEffect(() => {
     const audioCtx = new AudioContext();
@@ -337,6 +347,7 @@ const App: React.FC = () => {
             {(predictedSign.probability * 100).toFixed(2)}%)
           </h3>
           <h3>単語: {word}</h3>
+          <button onClick={handleEnableAudio}>音声を有効にする</button>
         </div>
       )}
     </div>
