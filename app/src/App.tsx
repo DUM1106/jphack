@@ -347,9 +347,9 @@ const App: React.FC = () => {
             {(predictedSign.probability * 100).toFixed(2)}%)
           </h3>
           <h3>単語: {word}</h3>
-          <button onClick={handleEnableAudio}>音声を有効にする</button>
         </div>
       )}
+      <button onClick={handleEnableAudio}>音声を有効にする</button>
     </div>
   );
 };
