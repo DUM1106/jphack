@@ -76,28 +76,40 @@ const App: React.FC = () => {
     startCamera();
   }, []);
 
-  const handleEnableAudio = () => {
-    const audioCtx = new AudioContext();
-    audioCtxRef.current = audioCtx;
+  const handleEnableAudio = async () => {
+    if (!audioCtxRef.current) {
+      const audioCtx = new AudioContext();
+      audioCtxRef.current = audioCtx;
 
-    // 空の音声バッファを再生してAudioContextを起動
-    const emptySource = audioCtx.createBufferSource();
-    emptySource.start();
-    emptySource.stop();
+      // 空の音声バッファを使用してAudioContextを起動
+      const emptySource = audioCtx.createBufferSource();
+      emptySource.buffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+      emptySource.connect(audioCtx.destination);
+      emptySource.start();
+      emptySource.stop();
+    }
+
+    if (audioCtxRef.current.state === "suspended") {
+      await audioCtxRef.current.resume();
+    }
   };
 
-  // AudioContextを初期化するuseEffect
+  // 初期化用のuseEffect（AudioContextとSpeechSynthesisのセットアップ）
   useEffect(() => {
     const audioCtx = new AudioContext();
     audioCtxRef.current = audioCtx;
 
-    const initAudioContext = () => {
+    const initAudioContext = async () => {
       window.removeEventListener("touchstart", initAudioContext);
       window.removeEventListener("click", initAudioContext);
-      // 空の音声バッファを再生してAudioContextを起動
-      const emptySource = audioCtx.createBufferSource();
-      emptySource.start();
-      emptySource.stop();
+
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
+
+      // SpeechSynthesisを初期化
+      const utterance = new SpeechSynthesisUtterance("準備完了");
+      window.speechSynthesis.speak(utterance);
     };
 
     window.addEventListener("touchstart", initAudioContext);
@@ -149,7 +161,6 @@ const App: React.FC = () => {
           drawLandmarks(results.landmarks.flat());
           const normalizedData = normalizeData(results.landmarks.flat());
 
-          // リクエスト間隔に基づいてリクエストを送信
           if (
             performance.now() - lastPredictionTimeRef.current >
             requestInterval
@@ -183,10 +194,8 @@ const App: React.FC = () => {
       }
     });
 
-    // maxが正の値であることを確認し、maxが負の場合はそのまま返す
     if (max <= 0) return coordinates;
 
-    // maxで各座標を正規化
     const normalizedCoordinates = coordinates.map((d) =>
       d.map((v) => v / Math.sqrt(max))
     );
@@ -207,7 +216,6 @@ const App: React.FC = () => {
 
   const speakSign = (sign: string) => {
     const utterance = new SpeechSynthesisUtterance(sign);
-    // 音声を再生
     window.speechSynthesis.speak(utterance);
   };
 
@@ -228,118 +236,87 @@ const App: React.FC = () => {
 
       const result = await response.json();
 
-      // 予測結果を処理
-      const predictions = result.prediction[0]; // 二重の配列になっている可能性があるため[0]を追加
+      const predictions = result.prediction[0];
       const maxProbability = Math.max(...predictions);
       const maxIndex = predictions.indexOf(maxProbability);
 
-      // クラスと指文字のマッピング
       const signs = [
         "あ",
         "い",
         "う",
         "え",
-        "お", // 0-4
+        "お",
         "か",
         "き",
         "く",
         "け",
-        "こ", // 5-9
+        "こ",
         "さ",
         "し",
         "す",
         "せ",
-        "そ", // 10-14
+        "そ",
         "た",
         "ち",
         "つ",
         "て",
-        "と", // 15-19
+        "と",
         "な",
         "に",
         "ぬ",
-        "ね", // 20-23
+        "ね",
         "は",
         "ひ",
         "ふ",
         "へ",
-        "ほ", // 25-29
+        "ほ",
         "ま",
         "み",
         "む",
-        "め", // 30-33
+        "め",
         "や",
         "ゆ",
-        "よ", // 35-37
+        "よ",
         "ら",
         "る",
         "れ",
-        "ろ", // 38, 40-42
-        "わ", // 43
-      ]; // クラス数に応じて追加
+        "ろ",
+        "わ",
+      ];
 
-      // 確率が高い場合のみ表示
       if (maxProbability > 0.5) {
         const newSign = signs[maxIndex];
         setPredictedSign({
           sign: newSign,
           probability: maxProbability,
         });
-        // 新しい指文字と前の指文字を結合
         const combinedSign =
           (lastSignRef.current ? lastSignRef.current : "") + newSign;
 
         speakSign(newSign);
 
-        // wordDictのキーと一致する場合、setWordを呼び出す
         if (wordDict[combinedSign]) {
           setWord(wordDict[combinedSign]);
-          console.log(wordDict[combinedSign]);
-        }
-        if (newSign !== lastSignRef.current) {
-          lastSignRef.current = newSign;
+          lastSignRef.current = null;
+        } else {
+          lastSignRef.current = combinedSign;
         }
       } else {
-        setPredictedSign(null); // 確率が低い場合は非表示
+        setPredictedSign(null);
       }
     } catch (error) {
-      console.error("Error posting normalized data:", error);
+      console.error("Error:", error);
     }
   };
 
   useEffect(() => {
-    if (handLandmarker) {
-      renderLoop();
-    }
-  }, [handLandmarker, renderLoop]);
+    renderLoop();
+  }, [renderLoop]);
 
   return (
-    <div
-      style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
-    >
-      <p
-        style={{
-          color: "red",
-          fontSize: "40px",
-          fontWeight: 700,
-          position: "fixed",
-          top: 0,
-        }}
-      >
-        HearU
-      </p>
-      {/* カメラ映像を表示するためのvideoタグ */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ display: "none" }}
-      />
-      {/* ランドマークを描画するためのcanvasタグ */}
-      <canvas ref={canvasRef} style={{ width: "100%", height: "auto" }} />
-
-      {/* 予測結果の表示 */}
+    <div>
+      <video ref={videoRef} playsInline />
+      <canvas ref={canvasRef} />
       {predictedSign && (
         <div>
           <h3>
