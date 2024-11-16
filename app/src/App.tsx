@@ -119,7 +119,31 @@ const App: React.FC = () => {
       const ctx = canvas.getContext("2d");
 
       if (video.currentTime > 0) {
-        const results = await handLandmarker.detectForVideo(video, startTimeMs);
+        // Set canvas dimensions to match the video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        if (ctx) {
+          // Clear the canvas
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // Flip the context horizontally
+          ctx.save(); // Save the current state
+          ctx.scale(-1, 1); // Flip horizontally
+          ctx.translate(-canvas.width, 0); // Move the flipped image into view
+
+          // Draw the video frame onto the canvas
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          // Restore the context to its original state
+          ctx.restore();
+        }
+
+        // Use the flipped canvas for hand detection
+        const results = await handLandmarker.detectForVideo(
+          canvas,
+          startTimeMs
+        );
 
         // キャンバスのサイズを動画に合わせて設定
         canvas.width = video.videoWidth;
