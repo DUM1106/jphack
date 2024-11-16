@@ -37,6 +37,7 @@ const App: React.FC = () => {
 
   const playSilent = () => {
     const context = new window.AudioContext();
+    context.resume();
     const buf = context.createBuffer(1, 1, 22050);
     const src = context.createBufferSource();
     src.buffer = buf;
