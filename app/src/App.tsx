@@ -35,6 +35,19 @@ const App: React.FC = () => {
 
   const lastSignRef = useRef<string | null>(null); // 前回の指文字を保持
 
+  const playSilent = () => {
+    const context = new window.AudioContext();
+    const buf = context.createBuffer(1, 1, 22050);
+    const src = context.createBufferSource();
+    src.buffer = buf;
+    src.connect(context.destination);
+    src.start(0);
+  };
+
+  document.addEventListener("click", function () {
+    playSilent();
+  });
+
   useEffect(() => {
     const initializeHandLandmarker = async () => {
       // Mediapipe用のWASMファイルのURLを指定
