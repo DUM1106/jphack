@@ -118,10 +118,6 @@ const App: React.FC = () => {
       const startTimeMs = performance.now();
       const ctx = canvas.getContext("2d");
 
-      //左右反転
-      video.style.transform = "scaleX(-1)";
-      video.style.transformOrigin = "center"; // 中心を基準に反転
-
       if (video.currentTime > 0) {
         const results = await handLandmarker.detectForVideo(video, startTimeMs);
 
@@ -439,7 +435,7 @@ const App: React.FC = () => {
           autoPlay
           playsInline
           muted
-          style={{ display: "none" }}
+          style={{ transform: "scaleX(-1)", display: "none" }}
         />
         <canvas ref={canvasRef} className="canvas" />
       </div>
