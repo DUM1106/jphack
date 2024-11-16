@@ -104,12 +104,9 @@ const App: React.FC = () => {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
 
-        // 左右反転する
-        const width = ctx.canvas.width;
-        ctx.scale(-1, 1);
-        ctx.translate(-width, 0);
-
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw the video frame onto the canvas
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         ctx.fillStyle = "#FF0000";
@@ -117,7 +114,7 @@ const App: React.FC = () => {
         ctx.lineWidth = 2;
 
         landmarks.forEach((landmark) => {
-          const x = landmark.x * canvas.width;
+          const x = (1 - landmark.x) * canvas.width;
           const y = landmark.y * canvas.height;
           ctx.beginPath();
           ctx.arc(x, y, 5, 0, 2 * Math.PI);
@@ -137,10 +134,31 @@ const App: React.FC = () => {
       const ctx = canvas.getContext("2d");
 
       if (video.currentTime > 0) {
-        video.style.transform = "scaleX(-1)";
-        video.style.transformOrigin = "center"; // 中心を基準に反転
+        // Set canvas dimensions to match the video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
 
-        const results = await handLandmarker.detectForVideo(video, startTimeMs);
+        if (ctx) {
+          // Clear the canvas
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // Flip the context horizontally
+          ctx.save(); // Save the current state
+          ctx.scale(-1, 1); // Flip horizontally
+          ctx.translate(-canvas.width, 0); // Move the flipped image into view
+
+          // Draw the video frame onto the canvas
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          // Restore the context to its original state
+          ctx.restore();
+        }
+
+        // Use the flipped canvas for hand detection
+        const results = await handLandmarker.detectForVideo(
+          canvas,
+          startTimeMs
+        );
 
         // キャンバスのサイズを動画に合わせて設定
         canvas.width = video.videoWidth;
