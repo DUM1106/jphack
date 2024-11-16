@@ -93,23 +93,15 @@ const App: React.FC = () => {
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Flip the context horizontally
-        ctx.save(); // Save the current state
-        ctx.scale(-1, 1); // Flip horizontally
-        ctx.translate(-canvas.width, 0); // Move the flipped image into view
-
         // Draw the video frame onto the canvas
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Restore the context to its original state
-        ctx.restore();
 
         ctx.fillStyle = "#FF0000";
         ctx.strokeStyle = "#00FF00";
         ctx.lineWidth = 2;
 
         landmarks.forEach((landmark) => {
-          const x = landmark.x * canvas.width;
+          const x = (1 - landmark.x) * canvas.width;
           const y = landmark.y * canvas.height;
           ctx.beginPath();
           ctx.arc(x, y, 5, 0, 2 * Math.PI);
