@@ -35,6 +35,35 @@ const App: React.FC = () => {
 
   const lastSignRef = useRef<string | null>(null); // 前回の指文字を保持
 
+  let audioInitialized = false;
+
+  // サイレントなオーディオ再生でAudioContextを有効化
+  const playSilent = () => {
+    const context = new window.AudioContext();
+    const buffer = context.createBuffer(1, 1, 22050); // サイレントな1フレーム
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    source.start(0);
+    context.resume();
+    console.log("AudioContext initialized.");
+  };
+
+  const initializeAudio = () => {
+    if (!audioInitialized) {
+      playSilent(); // AudioContextを有効化
+      const utterance = new SpeechSynthesisUtterance("音声初期化完了");
+      utterance.volume = 0.0;
+      window.speechSynthesis.speak(utterance); // SpeechSynthesisを初期化
+      audioInitialized = true;
+      console.log("SpeechSynthesis initialized.");
+    }
+  };
+
+  document.addEventListener("click", function () {
+    initializeAudio();
+  });
+
   useEffect(() => {
     const initializeHandLandmarker = async () => {
       // Mediapipe用のWASMファイルのURLを指定
