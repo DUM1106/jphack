@@ -52,8 +52,8 @@ const App: React.FC = () => {
   const initializeAudio = () => {
     if (!audioInitialized) {
       playSilent(); // AudioContextを有効化
-      // const utterance = new SpeechSynthesisUtterance("音声初期化完了");
-      // window.speechSynthesis.speak(utterance); // SpeechSynthesisを初期化
+      const utterance = new SpeechSynthesisUtterance("音声初期化完了");
+      window.speechSynthesis.speak(utterance); // SpeechSynthesisを初期化
       audioInitialized = true;
       console.log("SpeechSynthesis initialized.");
     }
