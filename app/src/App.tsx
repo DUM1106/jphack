@@ -461,7 +461,7 @@ const App: React.FC = () => {
           autoPlay
           playsInline
           muted
-          style={{ transform: "scaleX(-1)", display: "none" }}
+          style={{ display: "none" }}
         />
         <canvas ref={canvasRef} className="canvas" />
       </div>
