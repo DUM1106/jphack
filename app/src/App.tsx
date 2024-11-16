@@ -5,8 +5,6 @@ import {
   NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
 
-import axios from "axios";
-
 const App: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -20,14 +18,9 @@ const App: React.FC = () => {
     probability: number;
   } | null>(null);
 
-  //文章
-  const [finalSentence, setFinalSentence] = useState<string>("");
-
-  // 累積された文字列を内部で保持する
-  const accumulatedTextRef = useRef<string>("");
+  const [word, setWord] = useState<string>("");
 
   const lastPredictionTimeRef = useRef<number>(0);
-  const lastSignTimeRef = useRef<number>(0);
 
   const requestsPerSecond = 2;
   const requestInterval = 1000 / requestsPerSecond;
@@ -89,6 +82,11 @@ const App: React.FC = () => {
       if (ctx) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
+
+        // 左右反転する
+        const width = ctx.canvas.width;
+        ctx.scale(-1, 1);
+        ctx.translate(-width, 0);
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -165,8 +163,19 @@ const App: React.FC = () => {
     return normalizedCoordinates;
   };
 
-  const speakText = (text: string) => {
-    const utterance = new SpeechSynthesisUtterance(text);
+  const wordDict: Record<string, string> = {
+    さき: "先",
+    かき: "柿",
+    かさ: "傘",
+    さけ: "酒",
+    あさ: "朝",
+    くさ: "草",
+    くせ: "癖",
+    さお: "竿",
+  };
+
+  const speakSign = (sign: string) => {
+    const utterance = new SpeechSynthesisUtterance(sign);
     window.speechSynthesis.speak(utterance);
   };
 
@@ -219,6 +228,7 @@ const App: React.FC = () => {
         "ぬ",
         "ね", // 20-23
         "は",
+        "は", //ははbeta版の二つある
         "ひ",
         "ふ",
         "へ",
@@ -239,29 +249,26 @@ const App: React.FC = () => {
 
       // 確率が高い場合のみ表示
       if (maxProbability > 0.5) {
-        // 指文字が検出された場合
         const newSign = signs[maxIndex];
         setPredictedSign({
           sign: newSign,
           probability: maxProbability,
         });
+        // 新しい指文字と前の指文字を結合
+        const combinedSign =
+          (lastSignRef.current ? lastSignRef.current : "") + newSign;
 
-        // 現在の時刻を取得
-        const now = performance.now();
-
+        // wordDictのキーと一致する場合、setWordを呼び出す
+        if (wordDict[combinedSign]) {
+          speakSign(wordDict[combinedSign]);
+          setWord(wordDict[combinedSign]);
+          console.log(word);
+        }
         if (newSign !== lastSignRef.current) {
           lastSignRef.current = newSign;
-          accumulatedTextRef.current += newSign;
-          console.log(`累積された指文字: ${accumulatedTextRef.current}`);
         }
-
-        // **指文字が検出されたので、最終検出時間を更新**
-        lastSignTimeRef.current = now;
       } else {
-        // **指文字が検出されなかった場合でも、最終検出時間を更新**
-        lastSignTimeRef.current = performance.now();
-
-        setPredictedSign(null);
+        setPredictedSign(null); // 確率が低い場合は非表示
       }
     } catch (error) {
       console.error("Error posting normalized data:", error);
@@ -289,82 +296,6 @@ const App: React.FC = () => {
   //     return undefined;
   //   }
   // };
-
-  // 新しいRefを追加
-  const lastActiveTimeRef = useRef<number>(performance.now());
-
-  useEffect(() => {
-    const checkInactivity = () => {
-      const now = performance.now();
-      const timeSinceLastSign = now - lastSignTimeRef.current;
-      const timeSinceLastActive = now - lastActiveTimeRef.current;
-
-      if (timeSinceLastSign < 1000) {
-        // 入力が続いている場合、最終アクティブ時間を更新
-        lastActiveTimeRef.current = now;
-      } else if (
-        accumulatedTextRef.current.length > 0 &&
-        timeSinceLastActive > 1500
-      ) {
-        // 入力が停止してから一定時間経過した場合のみ送信
-        fetchChatGPTResponse(accumulatedTextRef.current);
-        accumulatedTextRef.current = "";
-      }
-    };
-
-    const intervalId = setInterval(checkInactivity, 1000);
-
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // ChatGPT APIにリクエストを送信する関数
-  const fetchChatGPTResponse = async (text: string) => {
-    console.log("Sending text to ChatGPT:", text);
-    try {
-      // 環境変数やサーバーサイドからAPIキーを取得
-      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new Error("OpenAI APIキーが設定されていません。");
-      }
-
-      const response = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content:
-                "あなたは、入力されたひらがなを自然な日本語に変換するアシスタントです。単独の文字の場合、そのままの文字を返します。意味が通じる必要はありません。変換結果以外の情報は一切返さないでください。余計な説明や記号を含めないでください。",
-            },
-            {
-              role: "user",
-              content: `${text}`,
-            },
-          ],
-          max_tokens: 20,
-          temperature: 0.1,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-        }
-      );
-
-      const assistantMessage = response.data.choices[0].message.content.trim();
-      console.log("ChatGPT response:", assistantMessage);
-
-      // 結果を表示
-      setFinalSentence(assistantMessage);
-
-      // 音声で発話
-      speakText(assistantMessage);
-    } catch (error) {
-      console.error("Error fetching ChatGPT response:", error);
-    }
-  };
 
   useEffect(() => {
     if (handLandmarker) {
@@ -405,12 +336,8 @@ const App: React.FC = () => {
             予測された指文字: {predictedSign.sign} (確率:{" "}
             {(predictedSign.probability * 100).toFixed(2)}%)
           </h3>
-        </div>
-      )}
-      {/* 最終的な文章の表示 */}
-      {finalSentence && (
-        <div>
-          <h3>生成された文章: {finalSentence}</h3>
+          {/* <p>確率: {(predictedSign.probability * 100).toFixed(2)}%</p> */}
+          <h3>単語: {word}</h3>
         </div>
       )}
     </div>
