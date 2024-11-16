@@ -1,9 +1,12 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
+import "./App.css";
 import {
   HandLandmarker,
   FilesetResolver,
   NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
+
+import axios from "axios";
 
 const App: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -18,9 +21,14 @@ const App: React.FC = () => {
     probability: number;
   } | null>(null);
 
-  const [word, setWord] = useState<string>("");
+  //文章
+  const [finalSentence, setFinalSentence] = useState<string>("");
+
+  // 累積された文字列を内部で保持する
+  const accumulatedTextRef = useRef<string>("");
 
   const lastPredictionTimeRef = useRef<number>(0);
+  const lastSignTimeRef = useRef<number>(0);
 
   const requestsPerSecond = 2;
   const requestInterval = 1000 / requestsPerSecond;
@@ -109,26 +117,48 @@ const App: React.FC = () => {
 
   const renderLoop = useCallback(async () => {
     const video = videoRef.current;
-    if (video && handLandmarker) {
+    const canvas = canvasRef.current;
+
+    if (video && canvas && handLandmarker) {
       const startTimeMs = performance.now();
+      const ctx = canvas.getContext("2d");
+
       if (video.currentTime > 0) {
+        video.style.transform = "scaleX(-1)";
+        video.style.transformOrigin = "center"; // 中心を基準に反転
+
         const results = await handLandmarker.detectForVideo(video, startTimeMs);
 
-        if (results.landmarks && results.landmarks.length > 0) {
-          drawLandmarks(results.landmarks.flat());
-          const normalizedData = normalizeData(results.landmarks.flat());
+        // キャンバスのサイズを動画に合わせて設定
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
 
-          // リクエスト間隔に基づいてリクエストを送信
-          if (
-            performance.now() - lastPredictionTimeRef.current >
-            requestInterval
-          ) {
-            lastPredictionTimeRef.current = performance.now();
-            postNormalizedData(normalizedData);
+        if (ctx) {
+          // キャンバスをクリア
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // 動画フレームを描画
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          if (results.landmarks && results.landmarks.length > 0) {
+            // 手が検知された場合、ランドマークを描画
+            drawLandmarks(results.landmarks.flat());
+
+            const normalizedData = normalizeData(results.landmarks.flat());
+
+            // リクエスト間隔に基づいてリクエストを送信
+            if (
+              performance.now() - lastPredictionTimeRef.current >
+              requestInterval
+            ) {
+              lastPredictionTimeRef.current = performance.now();
+              postNormalizedData(normalizedData);
+            }
           }
         }
       }
 
+      // 次のフレームをリクエスト
       requestAnimationFrame(renderLoop);
     }
   }, [handLandmarker, requestInterval]);
@@ -163,22 +193,21 @@ const App: React.FC = () => {
     return normalizedCoordinates;
   };
 
-  const wordDict: Record<string, string> = {
-    さき: "先",
-    かき: "柿",
-    かさ: "傘",
-    さけ: "酒",
-    あさ: "朝",
-    くさ: "草",
-    くせ: "癖",
-    さお: "竿",
-  };
-
-  const speakSign = (sign: string) => {
-    const utterance = new SpeechSynthesisUtterance(sign);
+  const speakText = (text: string) => {
+    const utterance = new SpeechSynthesisUtterance(text);
     window.speechSynthesis.speak(utterance);
   };
 
+  const sameSignCountRef = useRef<number>(0); // 同じ指文字が連続した回数
+  const requiredConsecutiveCount = 3; // 確定に必要な連続回数
+
+  // 新しいRefを追加
+  const lastConfirmedSignRef = useRef<string | null>(null);
+
+  // 累計文字を状態で管理
+  const [accumulatedText, setAccumulatedText] = useState<string>("");
+
+  // postNormalizedData関数の中で累計文字を更新
   const postNormalizedData = async (data: number[][]) => {
     try {
       const dataToSend = { landmark: data };
@@ -197,7 +226,7 @@ const App: React.FC = () => {
       const result = await response.json();
 
       // 予測結果を処理
-      const predictions = result.prediction[0]; // 二重の配列になっている可能性があるため[0]を追加
+      const predictions = result.prediction[0];
       const maxProbability = Math.max(...predictions);
       const maxIndex = predictions.indexOf(maxProbability);
 
@@ -207,68 +236,93 @@ const App: React.FC = () => {
         "い",
         "う",
         "え",
-        "お", // 0-4
+        "お",
         "か",
         "き",
         "く",
         "け",
-        "こ", // 5-9
+        "こ",
         "さ",
         "し",
         "す",
         "せ",
-        "そ", // 10-14
+        "そ",
         "た",
         "ち",
         "つ",
         "て",
-        "と", // 15-19
+        "と",
         "な",
         "に",
         "ぬ",
-        "ね", // 20-23
+        "ね",
         "は",
         "は", //ははbeta版の二つある
         "ひ",
         "ふ",
         "へ",
-        "ほ", // 25-29
+        "ほ",
         "ま",
         "み",
         "む",
-        "め", // 30-33
+        "め",
         "や",
         "ゆ",
-        "よ", // 35-37
+        "よ",
         "ら",
         "る",
         "れ",
-        "ろ", // 38, 40-42
-        "わ", // 43
-      ]; // クラス数に応じて追加
+        "ろ",
+        "わ",
+      ];
 
-      // 確率が高い場合のみ表示
       if (maxProbability > 0.5) {
         const newSign = signs[maxIndex];
+
         setPredictedSign({
           sign: newSign,
           probability: maxProbability,
         });
-        // 新しい指文字と前の指文字を結合
-        const combinedSign =
-          (lastSignRef.current ? lastSignRef.current : "") + newSign;
 
-        // wordDictのキーと一致する場合、setWordを呼び出す
-        if (wordDict[combinedSign]) {
-          speakSign(wordDict[combinedSign]);
-          setWord(wordDict[combinedSign]);
-          console.log(word);
-        }
-        if (newSign !== lastSignRef.current) {
+        // 現在の時刻を取得
+        const now = performance.now();
+
+        if (newSign === lastSignRef.current) {
+          // 同じ指文字が連続して検出された場合、カウントを増加
+          sameSignCountRef.current += 1;
+        } else {
+          // 異なる指文字が検出された場合、カウントをリセット
+          sameSignCountRef.current = 1;
           lastSignRef.current = newSign;
         }
+
+        // カウントが指定回数に達した場合、前回確定した指文字と異なる場合のみ累積
+        if (
+          sameSignCountRef.current >= requiredConsecutiveCount &&
+          newSign !== lastConfirmedSignRef.current
+        ) {
+          accumulatedTextRef.current += newSign;
+          console.log(`累積された指文字: ${accumulatedTextRef.current}`);
+
+          // 累計文字を状態に反映
+          setAccumulatedText(accumulatedTextRef.current);
+
+          // 最後に確定した指文字を更新
+          lastConfirmedSignRef.current = newSign;
+
+          // カウントをリセット
+          sameSignCountRef.current = 0;
+        }
+
+        // 最終検出時間を更新
+        lastSignTimeRef.current = now;
       } else {
-        setPredictedSign(null); // 確率が低い場合は非表示
+        // 指文字が検出されなかった場合、カウントをリセット
+        sameSignCountRef.current = 0;
+        lastSignRef.current = null;
+        lastSignTimeRef.current = performance.now();
+
+        setPredictedSign(null);
       }
     } catch (error) {
       console.error("Error posting normalized data:", error);
@@ -297,6 +351,82 @@ const App: React.FC = () => {
   //   }
   // };
 
+  // 新しいRefを追加
+  const lastActiveTimeRef = useRef<number>(performance.now());
+
+  useEffect(() => {
+    const checkInactivity = () => {
+      const now = performance.now();
+      const timeSinceLastSign = now - lastSignTimeRef.current;
+      const timeSinceLastActive = now - lastActiveTimeRef.current;
+
+      if (timeSinceLastSign < 1000) {
+        // 入力が続いている場合、最終アクティブ時間を更新
+        lastActiveTimeRef.current = now;
+      } else if (
+        accumulatedTextRef.current.length > 0 &&
+        timeSinceLastActive > 1000
+      ) {
+        // 入力が停止してから一定時間経過した場合のみ送信
+        fetchChatGPTResponse(accumulatedTextRef.current);
+        accumulatedTextRef.current = "";
+      }
+    };
+
+    const intervalId = setInterval(checkInactivity, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // ChatGPT APIにリクエストを送信する関数
+  const fetchChatGPTResponse = async (text: string) => {
+    console.log("Sending text to ChatGPT:", text);
+    try {
+      // 環境変数やサーバーサイドからAPIキーを取得
+      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error("OpenAI APIキーが設定されていません。");
+      }
+
+      const response = await axios.post(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content:
+                "あなたは、入力されたひらがなを自然な日本語に変換するアシスタントです。単独の文字の場合、そのままの文字を返します。意味が通じる必要はありません。変換結果以外の情報は一切返さないでください。余計な説明や記号を含めないでください。",
+            },
+            {
+              role: "user",
+              content: `${text}`,
+            },
+          ],
+          max_tokens: 20,
+          temperature: 0.1,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+        }
+      );
+
+      const assistantMessage = response.data.choices[0].message.content.trim();
+      console.log("ChatGPT response:", assistantMessage);
+
+      // 結果を表示
+      setFinalSentence(assistantMessage);
+
+      // 音声で発話
+      speakText(assistantMessage);
+    } catch (error) {
+      console.error("Error fetching ChatGPT response:", error);
+    }
+  };
+
   useEffect(() => {
     if (handLandmarker) {
       renderLoop();
@@ -304,42 +434,45 @@ const App: React.FC = () => {
   }, [handLandmarker, renderLoop]);
 
   return (
-    <div
-      style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
-    >
-      <p
-        style={{
-          color: "red",
-          fontSize: "40px",
-          fontWeight: 700,
-          position: "fixed",
-          top: 0,
-        }}
-      >
-        HearU
-      </p>
-      {/* カメラ映像を表示するためのvideoタグ */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ display: "none" }}
-      />
-      {/* ランドマークを描画するためのcanvasタグ */}
-      <canvas ref={canvasRef} style={{ width: "100%", height: "auto" }} />
+    <div className="container">
+      <h1 className="header">HearU</h1>
 
-      {/* 予測結果の表示 */}
-      {predictedSign && (
-        <div>
-          <h3>
-            予測された指文字: {predictedSign.sign} (確率:{" "}
-            {(predictedSign.probability * 100).toFixed(2)}%)
-          </h3>
-          {/* <p>確率: {(predictedSign.probability * 100).toFixed(2)}%</p> */}
-          <h3>単語: {word}</h3>
+      <div className="video-canvas-container">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{ display: "none" }}
+        />
+        <canvas ref={canvasRef} className="canvas" />
+      </div>
+
+      <div className="prediction-accumulated-container">
+        {/* 予測結果ボックス */}
+        <div className="prediction-box">
+          <span>予測結果</span>
+          <p>
+            指文字: {predictedSign ? predictedSign.sign : "認識中..."} <br />
+            確率:{" "}
+            {predictedSign
+              ? (predictedSign.probability * 100).toFixed(2) + "%"
+              : "0%"}
+          </p>
         </div>
-      )}
+
+        {/* 累計文字ボックス */}
+        <div className="accumulated-box">
+          <span>累計文字</span>
+          <p>{accumulatedText || "入力待ち..."}</p>
+        </div>
+      </div>
+
+      {/* 文章ボックス */}
+      <div className="final-box">
+        <span>単語/文章</span>
+        <p>{finalSentence || "生成待ち..."}</p>
+      </div>
     </div>
   );
 };

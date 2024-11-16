@@ -1,0 +1,118 @@
+/* 全体のスタイル */
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Arial', sans-serif;
+    padding: 2rem;
+    background-color: #f0f0f0;
+    min-height: 100vh;
+}
+
+/* ヘッダー */
+.header {
+color: red;
+font-size: 2.5rem;
+font-weight: bold;
+margin: 1.5rem 0;
+}
+
+/* 動画とキャンバス */
+.video-canvas-container {
+position: relative;
+width: 100%;
+max-width: 600px;
+margin-top: 1rem;
+}
+
+.canvas {
+width: 100%;
+height: auto;
+border-radius: 1rem;
+}
+
+/* 予測結果と累計文字のコンテナ */
+.prediction-accumulated-container {
+    display: flex; /* Flexbox を利用して横並びにする */
+    justify-content: space-between; /* スペースを均等に配分 */
+    gap: 1rem; /* ボックス間の隙間 */
+    width: 100%; /* 横幅いっぱいに広げる */
+    margin-top: 2rem; /* 上部の余白 */
+    box-sizing: border-box; /* ボックスサイズを調整 */
+}
+
+/* 予測結果のボックス */
+.prediction-box {
+    flex: 1; /* 横幅を均等に分配 */
+    padding: 1rem;
+    border: 2px solid #2597d0;
+    border-radius: 1rem;
+    background-color: #fff;
+    text-align: center;
+    box-sizing: border-box;
+    text-align: left;
+}
+
+.prediction-box span {
+    display: inline-block;
+    margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #2597d0;
+}
+
+.prediction-box p {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #333;
+}
+
+/* 累計文字のボックス */
+.accumulated-box {
+    flex: 1; /* 横幅を均等に分配 */
+    padding: 1rem;
+    border: 2px solid #2597d0;
+    border-radius: 1rem;
+    background-color: #fff;
+    text-align: left;
+    box-sizing: border-box;
+}
+
+.accumulated-box span {
+    display: inline-block;
+    margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #2597d0;
+}
+
+.accumulated-box p {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #333;
+}
+
+
+/* 文章ボックス */
+.final-box {
+width: 90%; 
+margin-top: 2rem;
+padding: 1.8rem;
+border: 2px solid #2597d0;
+border-radius: 1rem;
+background-color: #fff;
+text-align: left;
+font-size: 1.5rem;
+font-weight: bold;
+}
+
+.final-box span {
+display: inline-block;
+margin-bottom: 0.5rem;
+font-size: 1.2rem;
+font-weight: bold;
+color: #2597d0;
+}
+
