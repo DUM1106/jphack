@@ -35,7 +35,7 @@ const App: React.FC = () => {
 
   const lastSignRef = useRef<string | null>(null); // 前回の指文字を保持
 
-  // let audioInitialized = false;
+  let audioInitialized = false;
 
   // サイレントなオーディオ再生でAudioContextを有効化
   const playSilent = () => {
@@ -49,18 +49,18 @@ const App: React.FC = () => {
     console.log("AudioContext initialized.");
   };
 
-  // const initializeAudio = () => {
-  //   if (!audioInitialized) {
-  //     playSilent(); // AudioContextを有効化
-  //     const utterance = new SpeechSynthesisUtterance("音声初期化完了");
-  //     window.speechSynthesis.speak(utterance); // SpeechSynthesisを初期化
-  //     audioInitialized = true;
-  //     console.log("SpeechSynthesis initialized.");
-  //   }
-  // };
+  const initializeAudio = () => {
+    if (!audioInitialized) {
+      playSilent(); // AudioContextを有効化
+      // const utterance = new SpeechSynthesisUtterance("音声初期化完了");
+      // window.speechSynthesis.speak(utterance); // SpeechSynthesisを初期化
+      audioInitialized = true;
+      console.log("SpeechSynthesis initialized.");
+    }
+  };
 
   document.addEventListener("click", function () {
-    playSilent();
+    initializeAudio();
   });
 
   useEffect(() => {
