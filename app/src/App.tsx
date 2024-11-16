@@ -482,7 +482,7 @@ const App: React.FC = () => {
 
   return (
     <div className="container">
-      <h1 className="header">HearU</h1>
+      <img src="/logo.png" alt="HearU Logo" className="header" />
 
       <div className="video-canvas-container">
         <video
