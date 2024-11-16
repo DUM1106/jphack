@@ -147,7 +147,17 @@ const App: React.FC = () => {
           startTimeMs
         );
 
+        // キャンバスのサイズを動画に合わせて設定
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
         if (ctx) {
+          // キャンバスをクリア
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // 動画フレームを描画
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
           if (results.landmarks && results.landmarks.length > 0) {
             // 手が検知された場合、ランドマークを描画
             drawLandmarks(results.landmarks.flat());
