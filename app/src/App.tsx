@@ -91,11 +91,6 @@ const App: React.FC = () => {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
 
-        // 左右反転する
-        const width = ctx.canvas.width;
-        ctx.scale(-1, 1);
-        ctx.translate(-width, 0);
-
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
@@ -115,6 +110,57 @@ const App: React.FC = () => {
     }
   };
 
+  // const renderLoop = useCallback(async () => {
+  //   const video = videoRef.current;
+  //   const canvas = canvasRef.current;
+
+  //   if (video && canvas && handLandmarker) {
+  //     const startTimeMs = performance.now();
+  //     const ctx = canvas.getContext("2d");
+
+  //     // video.style.transform = 'scaleX(-1)';
+  //     // video.style.transformOrigin = 'center'; // 中心を基準に反転
+
+  //     if (video.currentTime > 0) {
+
+  //     // video.style.transform = 'scaleX(-1)';
+  //     // video.style.transformOrigin = 'center'; // 中心を基準に反転
+
+  //       const results = await handLandmarker.detectForVideo(video, startTimeMs);
+
+  //       // キャンバスのサイズを動画に合わせて設定
+  //       canvas.width = video.videoWidth;
+  //       canvas.height = video.videoHeight;
+
+  //       if (ctx) {
+  //         // キャンバスをクリア
+  //         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  //         // 動画フレームを描画
+  //         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  //         if (results.landmarks && results.landmarks.length > 0) {
+  //           // 手が検知された場合、ランドマークを描画
+  //           drawLandmarks(results.landmarks.flat());
+
+  //           const normalizedData = normalizeData(results.landmarks.flat());
+
+  //           // リクエスト間隔に基づいてリクエストを送信
+  //           if (
+  //             performance.now() - lastPredictionTimeRef.current >
+  //             requestInterval
+  //           ) {
+  //             lastPredictionTimeRef.current = performance.now();
+  //             postNormalizedData(normalizedData);
+  //           }
+  //         }
+  //       }
+  //     }
+
+  //     // 次のフレームをリクエスト
+  //     requestAnimationFrame(renderLoop);
+  //   }
+  // }, [handLandmarker, requestInterval]);
   const renderLoop = useCallback(async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -124,12 +170,32 @@ const App: React.FC = () => {
       const ctx = canvas.getContext("2d");
 
       if (video.currentTime > 0) {
-        video.style.transform = "scaleX(-1)";
-        video.style.transformOrigin = "center"; // 中心を基準に反転
+        // オフスクリーンキャンバスを作成
+        const offscreenCanvas = document.createElement("canvas");
+        offscreenCanvas.width = video.videoWidth;
+        offscreenCanvas.height = video.videoHeight;
+        const offscreenCtx = offscreenCanvas.getContext("2d");
 
-        const results = await handLandmarker.detectForVideo(video, startTimeMs);
+        // 動画フレームを左右反転してオフスクリーンキャンバスに描画
+        if (offscreenCtx) {
+          offscreenCtx.translate(offscreenCanvas.width, 0);
+          offscreenCtx.scale(-1, 1);
+          offscreenCtx.drawImage(
+            video,
+            0,
+            0,
+            offscreenCanvas.width,
+            offscreenCanvas.height
+          );
+        }
 
-        // キャンバスのサイズを動画に合わせて設定
+        // 反転したフレームをMediaPipeに渡す
+        const results = await handLandmarker.detectForVideo(
+          offscreenCanvas,
+          startTimeMs
+        );
+
+        // メインキャンバスのサイズを設定
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
 
@@ -137,16 +203,24 @@ const App: React.FC = () => {
           // キャンバスをクリア
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-          // 動画フレームを描画
+          // 元の（反転していない）動画フレームを描画
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
           if (results.landmarks && results.landmarks.length > 0) {
-            // 手が検知された場合、ランドマークを描画
+            // ランドマークの左右を再度反転
+            results.landmarks.forEach((handLandmarks) => {
+              handLandmarks.forEach((landmark) => {
+                landmark.x = 1 - landmark.x; // x座標を反転
+              });
+            });
+
+            // ランドマークを描画
             drawLandmarks(results.landmarks.flat());
 
+            // 正規化されたデータを作成し、処理を続行
             const normalizedData = normalizeData(results.landmarks.flat());
 
-            // リクエスト間隔に基づいてリクエストを送信
+            // リクエストの間隔を考慮してデータを送信
             if (
               performance.now() - lastPredictionTimeRef.current >
               requestInterval
@@ -257,7 +331,6 @@ const App: React.FC = () => {
         "ぬ",
         "ね",
         "は",
-        "は", //ははbeta版の二つある
         "ひ",
         "ふ",
         "へ",
