@@ -13,6 +13,7 @@
 .header {
   width: 70%;
   height: auto;
+  margin-top: -30px;
 }
 
 /* 動画とキャンバス */
