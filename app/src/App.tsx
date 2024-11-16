@@ -92,7 +92,17 @@ const App: React.FC = () => {
         canvas.height = video.videoHeight;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Flip the context horizontally
+        ctx.save(); // Save the current state
+        ctx.scale(-1, 1); // Flip horizontally
+        ctx.translate(-canvas.width, 0); // Move the flipped image into view
+
+        // Draw the video frame onto the canvas
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Restore the context to its original state
+        ctx.restore();
 
         ctx.fillStyle = "#FF0000";
         ctx.strokeStyle = "#00FF00";
